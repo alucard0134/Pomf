@@ -13,9 +13,6 @@ CREATE TABLE `files` (
   `filename` varchar(30) default NULL,
   `size` int(10) unsigned default NULL,
   `date` date default NULL,
-  `expire` date default NULL, -- Deprecated since version 2.1.0
-  `delid` char(40) default NULL,
-  `user` int(10) unsigned default '0',
   `dir` int(2) default '0',
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB;
