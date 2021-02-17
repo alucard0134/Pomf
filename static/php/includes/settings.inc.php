@@ -5,7 +5,7 @@
  *
  * @copyright Copyright (c) 2013, 2014 Peter Lejeck <peter.lejeck@gmail.com>
  * @copyright Copyright (c) 2015 cenci0 <alchimist94@gmail.com>
- * @copyright Copyright (c) 2015, 2016 the Pantsu.cat developers
+ * @copyright Copyright (c) 2015, 2016, 2017 the Pantsu.cat developers <hostmaster@pantsu.cat>
  * <hostmaster@pantsu.cat>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -37,7 +37,7 @@
  * PDO_MYSQL DSN.
  * @param string POMF_DB_CONN DSN:host|unix_socket=hostname|path;dbname=database
  */
-define('POMF_DB_CONN', 'mysql:unix_socket=/tmp/mysql.sock;dbname=pomf');
+define('POMF_DB_CONN', 'mysql:unix_socket=/var/run/mysqld/mysqld.sock;dbname=pomf');
 
 /**
  * PDO database login credentials
@@ -46,7 +46,7 @@ define('POMF_DB_CONN', 'mysql:unix_socket=/tmp/mysql.sock;dbname=pomf');
 /** @param string POMF_DB_NAME Database username */
 define('POMF_DB_USER', 'pomf');
 /** @param string POMF_DB_PASS Database password */
-define('POMF_DB_PASS', '***');
+define('POMF_DB_PASS', '');
 
 /**
  * File system location where to store uploaded files
@@ -82,25 +82,17 @@ define('POMF_FILES_LENGTH', 6);
 define('POMF_URL', 'https://i.pantsu.cat/');
 
 /**
- * URI for filename generation 
+ * URI for filename generation
  *
  * @param string characters to be used in generateName()
  */
 define('ID_CHARSET', 'abcdefghijklmnopqrstuvwxyz');
 
-
 /**
- * Blocked mime types
- * @param string[] $FILTER_MIME blocked mime types
+ * Filtered mime types and extensions
  */
-$FILTER_MIME = array("");
-
-/**
- * Whitelisted mime types
- * @param string[] $WHITELIST_MIME_MIME allowed mime types
- */
-$WHITELIST_MIME = array("");
-
+define("CONFIG_BLOCKED_EXTENSIONS", serialize(array("exe")));
+define("CONFIG_BLOCKED_MIME", serialize(array("application/x-dosexec")));
 /**
  * Double dot file extensions
  *

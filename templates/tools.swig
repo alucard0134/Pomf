@@ -5,6 +5,13 @@
 <div class="jumbotron">
 <h1>Pomf Tools</h1>
 </div>
+    <h3>
+      To upload using curl or make a tool you can post using:
+
+      <br/>
+
+      curl -i -F files[]=@yourfile.jpeg {{siteUrl}}/upload.php (JSON Response)
+    </h3>
 <section>
 	<h2>pomfload</h2>
 	<dl>
@@ -15,30 +22,14 @@
 	</dl>
 </section>
 <section>
-	<h2>limf</h2>
-	<dl>
-		<dt>Download</dt>
-		<dd><a href="https://github.com/lich/limf">https://github.com/lich/limf</a></dd>
-		<dt>Contact</dt>
-		<dd><a href="http://lich.github.io/">http://lich.github.io/</a></dd>
-	</dl>
-</section>
-<section>
-	<h2>1339secure</h2>
-	<dl>
-		<dt>Download</dt>
-		<dd><a href="https://github.com/AdrianKoshka/1339secure">https://github.com/AdrianKoshka/1339secure</a></dd>
-		<dt>Contact</dt>
-		<dd><a href="mailto:adriankoshcha@teknik.io">adriankoshcha@teknik.io</a></dd>
-	</dl>
-</section>
-<section>
 	<h2>ShareX</h2>
 	<dl>
 		<dt>Download</dt>
-		<dd><a href="https://github.com/ShareX/ShareX/">https://github.com/ShareX/ShareX/</a></dd>
-		<dt>Settings</dt>
-		<dd><a href="https://p.pantsu.cat/view/raw/8c36da7e">https://p.pantsu.cat/view/raw/8c36da7e</a></dd>
+		<dd><a href="https://getsharex.com">https://getsharex.com</a></dd>
+		<dt>Source</dt>
+		<dd><a href="https://github.com/ShareX/ShareX">https://github.com/ShareX/ShareX</a></dd>
+		<dt>Contact</dt>
+		<dd><a href="https://webchat.freenode.net/?channels=%23ShareX">#ShareX on irc.freenode.net</a></dd>
 	</dl>
 </section>
 <section>

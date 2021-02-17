@@ -1,10 +1,11 @@
 <?php
 
+session_start();
+
 /**
  * Handles POST uploads, generates filenames, moves files around and commits
  * uploaded metadata to database.
  */
-
 require_once 'classes/Response.class.php';
 require_once 'classes/UploadException.class.php';
 require_once 'classes/UploadedFile.class.php';
@@ -25,7 +26,14 @@ function generateName($file)
     // We start at N retries, and --N until we give up
     $tries = POMF_FILES_RETRIES;
     $length = POMF_FILES_LENGTH;
+
+    //Get EXT
     $ext = pathinfo($file->name, PATHINFO_EXTENSION);
+
+    //Get MIME
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $type_mime = finfo_file($finfo, $file->tempfile);
+    finfo_close($finfo);
 
     // Check if extension is a double-dot extension and, if true, override $ext
     $revname = strrev($file->name);
@@ -38,19 +46,35 @@ function generateName($file)
     do {
         // Iterate until we reach the maximum number of retries
         if ($tries-- === 0) {
-            throw new Exception('Gave up trying to find an unused name',
-                500); // HTTP status code "500 Internal Server Error"
+            http_response_code(500);
+            throw new Exception(
+                'Gave up trying to find an unused name',
+                500
+            ); // HTTP status code "500 Internal Server Error"
         }
 
-        $chars = ID_CHARSET; 
+        $chars = ID_CHARSET;
         $name = '';
         for ($i = 0; $i < $length; ++$i) {
-            $name .= $chars[mt_rand(0, strlen($chars))]; 
+            $name .= $chars[mt_rand(0, strlen($chars))];
         }
 
         // Add the extension to the file name
         if (isset($ext) && $ext !== '') {
-            $name .= '.'.strip_tags($ext);
+            $name .= '.'.$ext;
+        }
+
+        //Check if MIME is blacklisted
+        if (in_array($type_mime, unserialize(CONFIG_BLOCKED_MIME))) {
+            http_response_code(415);
+            throw new UploadException(UPLOAD_ERR_EXTENSION);
+            exit(0);
+        }
+        //Check if EXT is blacklisted
+        if (in_array($ext, unserialize(CONFIG_BLOCKED_EXTENSIONS))) {
+            http_response_code(415);
+            throw new UploadException(UPLOAD_ERR_EXTENSION);
+            exit(0);
         }
 
         // Check if a file with the same name does already exist in the database
@@ -58,7 +82,7 @@ function generateName($file)
         $q->bindValue(':name', $name, PDO::PARAM_STR);
         $q->execute();
         $result = $q->fetchColumn();
-    // If it does, generate a new name
+        // If it does, generate a new name
     } while ($result > 0);
 
     return $name;
@@ -74,7 +98,7 @@ function generateName($file)
 function uploadFile($file)
 {
     global $db;
-    global $WHITELIST_MIME;
+    global $FILTER_MODE;
     global $FILTER_MIME;
 
     // Handle file errors
@@ -82,90 +106,88 @@ function uploadFile($file)
         throw new UploadException($file->error);
     }
 
-    // Check if mime type is blocked
-    if (!empty($FILTER_MIME)) {
-        if (in_array($file->mime, $FILTER_MIME)) {
-            throw new UploadException(UPLOAD_ERR_EXTENSION);
-        }
-    }
-    if (!empty($WHITELIST_MIME)) {
-        if (!in_array($file->mime, $WHITELIST_MIME)) {
-            throw new UploadException(UPLOAD_ERR_EXTENSION);
-        }
-    }
-
-
     // Check if a file with the same hash and size (a file which is the same)
     // does already exist in the database; if it does, return the proper link
     // and data. PHP deletes the temporary file just uploaded automatically.
     $q = $db->prepare('SELECT filename, COUNT(*) AS count FROM files WHERE hash = (:hash) '.
                       'AND size = (:size)');
     $q->bindValue(':hash', $file->getSha1(), PDO::PARAM_STR);
-    $q->bindValue(':size', $file->size,       PDO::PARAM_INT);
+    $q->bindValue(':size', $file->size, PDO::PARAM_INT);
     $q->execute();
     $result = $q->fetch();
     if ($result['count'] > 0) {
-        return array(
+        return [
             'hash' => $file->getSha1(),
             'name' => $file->name,
-            'url' => POMF_URL.$result['filename'],
+            'url' => POMF_URL.rawurlencode($result['filename']),
             'size' => $file->size,
-        );
+        ];
     }
 
     // Generate a name for the file
     $newname = generateName($file);
 
     // Store the file's full file path in memory
-    $uploadFile = POMF_FILES_ROOT . $newname;
+    $uploadFile = POMF_FILES_ROOT.$newname;
 
     // Attempt to move it to the static directory
     if (!move_uploaded_file($file->tempfile, $uploadFile)) {
-        throw new Exception('Failed to move file to destination',
-            500); // HTTP status code "500 Internal Server Error"
+        http_response_code(500);
+        throw new Exception(
+            'Failed to move file to destination',
+            500
+        ); // HTTP status code "500 Internal Server Error"
     }
 
     // Need to change permissions for the new file to make it world readable
     if (!chmod($uploadFile, 0644)) {
-        throw new Exception('Failed to change file permissions',
-            500); // HTTP status code "500 Internal Server Error"
+        http_response_code(500);
+        throw new Exception(
+            'Failed to change file permissions',
+            500
+        ); // HTTP status code "500 Internal Server Error"
     }
 
     // Add it to the database
-    // 'expire' support is deprecated since version 2.1.0. It may be
-    // removed in a future release.
-    $q = $db->prepare('INSERT INTO files (hash, originalname, filename, size, date, '.
-                      'expire, delid) VALUES (:hash, :orig, :name, :size, :date, '.
-                      ':exp, :del)');
+    if (empty($_SESSION['id'])) {
+        // Query if user is NOT logged in
+        $q = $db->prepare('INSERT INTO files (hash, originalname, filename, size, date, '.
+                    'expire, delid) VALUES (:hash, :orig, :name, :size, :date, '.
+                        ':exp, :del)');
+    } else {
+        // Query if user is logged in (insert user id together with other data)
+        $q = $db->prepare('INSERT INTO files (hash, originalname, filename, size, date, '.
+                    'expire, delid, user) VALUES (:hash, :orig, :name, :size, :date, '.
+                        ':exp, :del, :user)');
+        $q->bindValue(':user', $_SESSION['id'], PDO::PARAM_INT);
+    }
 
     // Common parameters binding
-    $q->bindValue(':hash', $file->getSha1(),       PDO::PARAM_STR);
+    $q->bindValue(':hash', $file->getSha1(), PDO::PARAM_STR);
     $q->bindValue(':orig', strip_tags($file->name), PDO::PARAM_STR);
-    $q->bindValue(':name', $newname,                PDO::PARAM_STR);
-    $q->bindValue(':size', $file->size,             PDO::PARAM_INT);
-    $q->bindValue(':date', date('Y-m-d'),           PDO::PARAM_STR);
-    $q->bindValue(':exp',  null,                    PDO::PARAM_STR); // Deprecated since version 2.1.0
-    $q->bindValue(':del',  sha1($file->tempfile),   PDO::PARAM_STR);
+    $q->bindValue(':name', $newname, PDO::PARAM_STR);
+    $q->bindValue(':size', $file->size, PDO::PARAM_INT);
+    $q->bindValue(':date', date('Y-m-d'), PDO::PARAM_STR);
+    $q->bindValue(':exp', null, PDO::PARAM_STR);
+    $q->bindValue(':del', sha1($file->tempfile), PDO::PARAM_STR);
     $q->execute();
 
-    return array(
+    return [
         'hash' => $file->getSha1(),
         'name' => $file->name,
-        'url' => POMF_URL.$newname,
+        'url' => POMF_URL.rawurlencode($newname),
         'size' => $file->size,
-    );
+    ];
 }
 
 /**
  * Reorder files array by file.
  *
- * @param  $_FILES
- *
  * @return array
  */
 function diverseArray($files)
 {
-    $result = array();
+    $result = [];
 
     foreach ($files as $key1 => $value1) {
         foreach ($value1 as $key2 => $value2) {
@@ -179,13 +201,11 @@ function diverseArray($files)
 /**
  * Reorganize the $_FILES array into something saner.
  *
- * @param  $_FILES
- *
  * @return array
  */
 function refiles($files)
 {
-    $result = array();
+    $result = [];
     $files = diverseArray($files);
 
     foreach ($files as $file) {
@@ -195,8 +215,6 @@ function refiles($files)
         $f->size = $file['size'];
         $f->tempfile = $file['tmp_name'];
         $f->error = $file['error'];
-        // 'expire' doesn't exist neither in $_FILES nor in UploadedFile;
-        // it was never implemented and has been deprecated since version 2.1.0.
         //$f->expire   = $file['expire'];
         $result[] = $f;
     }
